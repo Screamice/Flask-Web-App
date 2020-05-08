@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, make_response, session, escape
 from flask_sqlalchemy import SQLAlchemy
 import os
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -18,6 +18,8 @@ POSTGRESQL_DATABASE = "simpleComments"
 DB_URL = 'postgresql+psycopg2://{user}:{pw}@{url}/{db}'.format(user=POSTGRESQL_USER, pw=POSTGRESQL_PW, url=POSTGRESQL_URL, db=POSTGRESQL_DATABASE)
 
 app = Flask(__name__)
+
+app.secret_key = "12345"
 
 app.config["SQLALCHEMY_DATABASE_URI"] = DB_URL
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
@@ -71,6 +73,7 @@ def signup():
 def login():
     if request.method == "POST":
         user = Users.query.filter_by(username=request.form["username"]).first()
+        session["username"] = user.username
         """
         Si se cambia el orden de los parámetros en la función 'check_password_hash'
         no funciona. CHECHAR ESTO
@@ -79,6 +82,42 @@ def login():
             return "Has iniciado sesión"
         return "Tus credenciales son inválidas, revisa y logeate de nuevo"
     return render_template("login.html")
+
+@app.route("/search")
+def search():
+    nickname = request.args.get("nickname")
+    user = Users.query.filter_by(username=nickname).first()
+    if user:
+        return "El nombre de usuario es: {} y su contraseña es {}".format(user.username, user.password)
+    return "No existe ese usuario registrado"
+
+@app.route("/cookie/set")
+def set_cookie():
+    resp = make_response(render_template("index.html"))
+    # resp.set_cookie(__NOMBRE_DE_COOKIE__ , __VALOR_DE_LA_COOKIE__)
+    resp.set_cookie("username", "codeNoSchool")
+    
+    return resp
+
+@app.route("/cookie/read")
+def read_cookie():
+    # request.cookie.get(__NOMBRE_DE_COOKIE__)
+    username = request.cookies.get("username", None)
+    if username == None:
+        return "La cookie buscada no existe"
+    return username
+
+@app.route("/home")
+def home():
+    if "username" in session:
+        return "Tu eres {}".format(escape(session["username"]))
+    return "Debes de iniciar sesión primero"
+
+@app.route("/logout")
+def logout():
+    session.pop("username", None)
+
+    return "Has cerrado tu sesión"
 
 if __name__ == "__main__":
     database.create_all()
